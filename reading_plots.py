@@ -20,7 +20,6 @@
 #%% Housekeeping
 import seaborn as sns
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 import pandas as pd
 import numpy as np
 import os
@@ -46,6 +45,24 @@ def sig_rois(tvalues, pvalues, columns, rois, filepath, filename): # inputs: col
       wr = csv.writer(csvfile)
       wr.writerow((columns))
       wr.writerows(export_data)
+      
+def heatmap(t1, t2, p1, p2, save_dir, xlabels, mask):
+    cmap = sns.diverging_palette(220, 20, sep=20, as_cmap=True)
+    fig, [ax1, ax2] = plt.subplots(1, 2, sharey=True, figsize=(15,10))
+    fig.tight_layout()
+    ax3 = fig.add_axes([1, 0.0275, 0.05, 0.95]) # add new axes for cbar [horizontal, vertical, width, height]
+    ax1.tick_params(labelsize=14, size=0, rotation=45)
+    ax2.tick_params(labelsize=14, size=0, rotation=45)
+    ax3.tick_params(labelsize=16, size=0, rotation=270)
+    if mask == True:
+        sns.heatmap(t1, cmap=cmap, vmin=-4, vmax=4, cbar=False, ax=ax1, xticklabels=xlabels, yticklabels=False, mask=(p1>0.05))
+        sns.heatmap(t2, cmap=cmap, vmin=-4, vmax=4, ax=ax2, xticklabels=xlabels, yticklabels=False, 
+                mask=(p2>0.05), cbar=True, cbar_ax=ax3)
+    else:
+        sns.heatmap(t1, cmap=cmap, vmin=-4, vmax=4, cbar=False, ax=ax1, xticklabels=xlabels, yticklabels=False)
+        sns.heatmap(t2, cmap=cmap, vmin=-4, vmax=4, ax=ax2, xticklabels=xlabels, yticklabels=False, cbar=True, cbar_ax=ax3)
+    
+    fig.savefig(save_dir, bbox_inches='tight')
     
 #%% Import t-scores and p-values (DESIKAN)
 root_dir = os.path.join(os.getcwd(),'analyses') # {ENTER DIR OF ANALYSIS FOLDERS}
@@ -66,10 +83,10 @@ xlabels = ["FA (GM)", "FA (WM)", "FA (GWC)", # {CHANGE THESE TO MATCH DEP VAR NA
            "N0 (GM)", "N0 (WM)", "N0 (GWC)", 
            "Thick", "Area", "Volume"]
 
-df_var1 = np.zeros((71,18), dtype=float) # {MAKE SURE # OF COLUMNS MATCH # OF DEP VARS BELOW}
-df_var2 = np.zeros((71,18), dtype=float)
-pvalues_var1 = np.zeros((71,18), dtype=float)
-pvalues_var2 = np.zeros((71,18), dtype=float)
+tvalues_one = np.zeros((71,18), dtype=float) # {MAKE SURE # OF COLUMNS MATCH # OF DEP VARS BELOW}
+tvalues_two = np.zeros((71,18), dtype=float)
+pvalues_one = np.zeros((71,18), dtype=float)
+pvalues_two = np.zeros((71,18), dtype=float)
 run_once = 0
 # iterate through folders and build dataframe
 for names in ind_vars:
@@ -83,46 +100,23 @@ for names in ind_vars:
             if filename.startswith(x):
                 if names == "reading_hours": # {CHANGE THIS TO FOLDER FOR FIRST IND VAR}
                     df = pd.read_csv(os.path.join(root_dir, names, ind_vars[names], "tables", "table_coefs", filename), usecols=["t value"])
-                    df_var1[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values # need to slice x:x+1 rather than x
+                    tvalues_one[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values # need to slice x:x+1 rather than x
                     df = pd.read_csv(os.path.join(root_dir, names, ind_vars[names], "tables", "table_coefs", filename), usecols=["Pr(>|t|)"])
-                    pvalues_var1[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values 
+                    pvalues_one[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values 
                     print(filename)
                 if names == "reading_years": # {CHANGE THIS TO FOLDER FOR SECOND IND VAR}
                     df = pd.read_csv(os.path.join(root_dir, names, ind_vars[names], "tables", "table_coefs", filename), usecols=["t value"])
-                    df_var2[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values
+                    tvalues_two[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values
                     df = pd.read_csv(os.path.join(root_dir, names, ind_vars[names], "tables", "table_coefs", filename), usecols=["Pr(>|t|)"])
-                    pvalues_var2[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values 
+                    pvalues_two[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values 
                     print(filename)
                 
 # Generate heat maps
-cmap = sns.diverging_palette(220, 20, sep=20, as_cmap=True)
-
-fig, [ax1, ax2] = plt.subplots(1, 2, sharey=True, figsize=(20,15))
-fig.tight_layout()
-ax3 = fig.add_axes([1, 0.0275, 0.05, 0.95]) # add new axes for cbar [horizontal, vertical, width, height]
-ax1.tick_params(labelsize=14, size=0, rotation=45)
-ax2.tick_params(labelsize=14, size=0, rotation=45)
-ax3.tick_params(labelsize=16, size=0, rotation=270)
-spec = gridspec.GridSpec(ncols=2, nrows=1, figure=fig)
-sns.heatmap(df_var1, cmap=cmap, vmin=-4, vmax=4, cbar=False, ax=ax1, xticklabels=xlabels, yticklabels=False)
-sns.heatmap(df_var2, cmap=cmap, vmin=-4, vmax=4, ax=ax2, xticklabels=xlabels, yticklabels=False, cbar=True, cbar_ax=ax3)
-
 save_dir = os.path.join(os.getcwd(),'plots', 'reading', 'reading_heatmaps.pdf') # {ENTER SAVE DIR HERE}
-fig.savefig(save_dir, bbox_inches='tight')
-
+heatmap(tvalues_one, tvalues_two, pvalues_one, pvalues_two, save_dir, xlabels, mask=False)
 # Generate masked heat maps
-fig, [ax1, ax2] = plt.subplots(1, 2, sharey=True, figsize=(15,10))
-fig.tight_layout()
-ax3 = fig.add_axes([1, 0.0275, 0.05, 0.95]) # add new axes for cbar [horizontal, vertical, width, height]
-ax1.tick_params(labelsize=14, size=0, rotation=45)
-ax2.tick_params(labelsize=14, size=0, rotation=45)
-ax3.tick_params(labelsize=16, size=0, rotation=270)
-sns.heatmap(df_var1, cmap=cmap, vmin=-4, vmax=4, cbar=False, ax=ax1, xticklabels=xlabels, yticklabels=False, mask=(pvalues_var1>0.05))
-sns.heatmap(df_var2, cmap=cmap, vmin=-4, vmax=4, ax=ax2, xticklabels=xlabels, yticklabels=False, 
-            mask=(pvalues_var2>0.05), cbar=True, cbar_ax=ax3)
-
 save_dir = os.path.join(os.getcwd(),'plots', 'reading', 'reading_heatmaps_masked.pdf')  # {ENTER SAVE DIR HERE}
-fig.savefig(save_dir, bbox_inches='tight')
+heatmap(tvalues_one, tvalues_two, pvalues_one, pvalues_two, save_dir, xlabels, mask=True)
 
 # partition ordered parcellation names
 i = 0 
@@ -131,21 +125,23 @@ for value in roi_parc:
     i = i + 1
 # output .csv files with significant ROIs
 save_dir = os.path.join(os.getcwd(),'plots', 'reading', 'lists')  # {ENTER SAVE DIR HERE}
-output = sig_rois(df_var1, pvalues_var1, xlabels, roi_parc, save_dir, 'reading_hours.csv')
-output = sig_rois(df_var2, pvalues_var2, xlabels, roi_parc, save_dir, 'reading_years.csv')
+output = sig_rois(tvalues_one, pvalues_one, xlabels, roi_parc, save_dir, 'reading_hours.csv')
+output = sig_rois(tvalues_two, pvalues_two, xlabels, roi_parc, save_dir, 'reading_years.csv')
 
 #%% Import t-scores and p-values (DTI ATLAS)
 root_dir = os.path.join(os.getcwd(),'analyses') # {ENTER DIR OF ANALYSIS FOLDERS}
 
 ind_vars = {"reading_hours" : "sports_activity_ss_read_hours_p", "reading_years" : "sports_activity_ss_read_years_p"} # {ENTER FOLDER NAME : VAR NAME}
-# {ENTER ANY NUMBER OF DEP VARS BELOW WITH INCREMENTAL INTEGERS}
-vars_dict = {"dmri_rsi.vol_fiber" : 0, "dmri_dti.fa_fiber.at" : 1, "dmri_dti.md_fiber.at" : 2, 
+
+vars_dict = {"dmri_rsi.vol_fiber" : 0, "dmri_dti.fa_fiber.at" : 1, "dmri_dti.md_fiber.at" : 2, # {ENTER ANY NUMBER OF DEP VARS BELOW WITH INCREMENTAL INTEGERS}
              "dmri_dti.ld_fiber.at" : 3, "dmri_dti.td_fiber.at" : 4, "dmri_rsi.n0_fiber.at" : 5, "dmri_rsi.nd_fiber.at": 6}
+
+xlabels = ["Vol", "FA", "MD", "LD", "TD", "N0", "ND"]
 # {MAKE SURE # OF COLUMNS MATCH # OF DEP VARS BELOW}
-df_var1 = np.zeros((42,7), dtype=float)
-df_var2 = np.zeros((42,7), dtype=float)
-pvalues_var1 = np.zeros((42,7), dtype=float)
-pvalues_var2 = np.zeros((42,7), dtype=float)
+tvalues_one = np.zeros((42,7), dtype=float)
+tvalues_two = np.zeros((42,7), dtype=float)
+pvalues_one = np.zeros((42,7), dtype=float)
+pvalues_two = np.zeros((42,7), dtype=float)
 run_once = 0
 # iterate through folders and build dataframe
 for names in ind_vars:
@@ -159,49 +155,23 @@ for names in ind_vars:
             if filename.startswith(x):
                 if names == "reading_hours": # {CHANGE THIS TO FOLDER FOR FIRST IND VAR}
                     df = pd.read_csv(os.path.join(root_dir, names, ind_vars[names], "tables", "table_coefs", filename), usecols=["t value"])
-                    df_var1[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values # need to slice x:x+1 rather than x
+                    tvalues_one[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values # need to slice x:x+1 rather than x
                     df = pd.read_csv(os.path.join(root_dir, names, ind_vars[names], "tables", "table_coefs", filename), usecols=["Pr(>|t|)"])
-                    pvalues_var1[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values 
+                    pvalues_one[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values 
                     print(filename)
                 if names == "reading_years": # {CHANGE THIS TO FOLDER FOR SECOND IND VAR}
                     df = pd.read_csv(os.path.join(root_dir, names, ind_vars[names], "tables", "table_coefs", filename), usecols=["t value"])
-                    df_var2[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values
+                    tvalues_two[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values
                     df = pd.read_csv(os.path.join(root_dir, names, ind_vars[names], "tables", "table_coefs", filename), usecols=["Pr(>|t|)"])
-                    pvalues_var2[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values 
+                    pvalues_two[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values 
                     print(filename)
 
-#Generate heat maps
-cmap = sns.diverging_palette(220, 20, sep=20, as_cmap=True)
-
-xlabels = ["Vol", "FA", "MD", "LD", "TD", "N0", "ND"]
-
-fig, [ax1, ax2] = plt.subplots(1, 2, sharey=True, figsize=(20,15))
-fig.tight_layout()
-ax3 = fig.add_axes([1, 0.0275, 0.05, 0.95]) # add new axes for cbar [horizontal, vertical, width, height]
-ax1.tick_params(labelsize=14, size=0, rotation=45)
-ax2.tick_params(labelsize=14, size=0, rotation=45)
-ax3.tick_params(labelsize=16, size=0, rotation=270)
-spec = gridspec.GridSpec(ncols=2, nrows=1, figure=fig)
-sns.heatmap(df_var1, cmap=cmap, vmin=-4, vmax=4, cbar=False, ax=ax1, xticklabels=xlabels, yticklabels=False)
-sns.heatmap(df_var2, cmap=cmap, vmin=-4, vmax=4, ax=ax2, xticklabels=xlabels, yticklabels=False, cbar=True, cbar_ax=ax3)
-
+# Generate heat maps
 save_dir = os.path.join(os.getcwd(),'plots', 'reading', 'reading_heatmaps_AT.pdf') # {ENTER SAVE DIR HERE}
-fig.savefig(save_dir, bbox_inches='tight')
-
-#%Generate masked heat maps
-fig, [ax1, ax2] = plt.subplots(1, 2, sharey=True, figsize=(15,10))
-fig.tight_layout()
-ax3 = fig.add_axes([1, 0.0275, 0.05, 0.95]) # add new axes for cbar [horizontal, vertical, width, height]
-ax1.tick_params(labelsize=14, size=0, rotation=45)
-ax2.tick_params(labelsize=14, size=0, rotation=45)
-ax3.tick_params(labelsize=16, size=0, rotation=270)
-sns.heatmap(df_var1, cmap=cmap, vmin=-4, vmax=4, cbar=False, ax=ax1, xticklabels=xlabels, yticklabels=False, mask=(pvalues_var1>0.05))
-sns.heatmap(df_var2, cmap=cmap, vmin=-4, vmax=4, ax=ax2, xticklabels=xlabels, yticklabels=False, 
-            mask=(pvalues_var2>0.05), cbar=True, cbar_ax=ax3)
-
+heatmap(tvalues_one, tvalues_two, pvalues_one, pvalues_two, save_dir, xlabels, mask=False)
+# Generate masked heat maps
 save_dir = os.path.join(os.getcwd(),'plots', 'reading', 'reading_heatmaps_masked_AT.pdf') # {ENTER SAVE DIR HERE}
-fig.savefig(save_dir, bbox_inches='tight')
-
+heatmap(tvalues_one, tvalues_two, pvalues_one, pvalues_two, save_dir, xlabels, mask=True)
 # partition ordered parcellation names
 i = 0 
 for value in roi_parc:
@@ -209,21 +179,22 @@ for value in roi_parc:
     i = i + 1
 # output .csv files with significant ROIs
 save_dir = os.path.join(os.getcwd(),'plots', 'reading', 'lists')  # {ENTER SAVE DIR HERE}
-output = sig_rois(df_var1, pvalues_var1, xlabels, roi_parc, save_dir, 'reading_hours_AT.csv')
-output = sig_rois(df_var2, pvalues_var2, xlabels, roi_parc, save_dir, 'reading_years_AT.csv')
+output = sig_rois(tvalues_one, pvalues_one, xlabels, roi_parc, save_dir, 'reading_hours_AT.csv')
+output = sig_rois(tvalues_two, pvalues_two, xlabels, roi_parc, save_dir, 'reading_years_AT.csv')
 
 #%% Import t-scores and p-values (ASEG)
 root_dir = os.path.join(os.getcwd(),'analyses')
-# {ENTER ANY NUMBER OF DEP VARS BELOW WITH INCREMENTAL INTEGERS}
 ind_vars = {"reading_hours" : "sports_activity_ss_read_hours_p", "reading_years" : "sports_activity_ss_read_years_p"} # {ENTER FOLDER NAME : VAR NAME}
 
-vars_dict = {"smri_vol_subcort.aseg" : 0, "dmri_dti.fa_subcort.aseg" : 1, "dmri_dti.md_subcort.aseg" : 2, 
+vars_dict = {"smri_vol_subcort.aseg" : 0, "dmri_dti.fa_subcort.aseg" : 1, "dmri_dti.md_subcort.aseg" : 2, # {ENTER ANY NUMBER OF DEP VARS BELOW WITH INCREMENTAL INTEGERS}
              "dmri_dti.ld_subcort.aseg" : 3, "dmri_dti.td_subcort.aseg" : 4, "dmri_rsi.n0_subcort.aseg" : 5, "dmri_rsi.nd_subcort.aseg": 6}
+
+xlabels = ["Vol", "FA", "MD", "LD", "TD", "N0", "ND"]
 # {MAKE SURE # OF COLUMNS MATCH # OF DEP VARS BELOW}
-df_var1 = np.zeros((30,7), dtype=float)
-df_var2 = np.zeros((30,7), dtype=float)
-pvalues_var1 = np.zeros((30,7), dtype=float)
-pvalues_var2 = np.zeros((30,7), dtype=float)
+tvalues_one = np.zeros((30,7), dtype=float)
+tvalues_two = np.zeros((30,7), dtype=float)
+pvalues_one = np.zeros((30,7), dtype=float)
+pvalues_two = np.zeros((30,7), dtype=float)
 run_once = 0
 # iterate through folders and build dataframe
 for names in ind_vars:
@@ -237,48 +208,23 @@ for names in ind_vars:
             if filename.startswith(x):
                 if names == "reading_hours": # {CHANGE THIS TO FOLDER FOR FIRST IND VAR}
                     df = pd.read_csv(os.path.join(root_dir, names, ind_vars[names], "tables", "table_coefs", filename), usecols=["t value"])
-                    df_var1[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values # need to slice x:x+1 rather than x
+                    tvalues_one[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values # need to slice x:x+1 rather than x
                     df = pd.read_csv(os.path.join(root_dir, names, ind_vars[names], "tables", "table_coefs", filename), usecols=["Pr(>|t|)"])
-                    pvalues_var1[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values 
+                    pvalues_one[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values 
                     print(filename)
                 if names == "reading_years": # {CHANGE THIS TO FOLDER FOR SECOND IND VAR}
                     df = pd.read_csv(os.path.join(root_dir, names, ind_vars[names], "tables", "table_coefs", filename), usecols=["t value"])
-                    df_var2[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values
+                    tvalues_two[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values
                     df = pd.read_csv(os.path.join(root_dir, names, ind_vars[names], "tables", "table_coefs", filename), usecols=["Pr(>|t|)"])
-                    pvalues_var2[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values 
+                    pvalues_two[:,vars_dict[x]:(vars_dict[x] + 1)] = df.values 
                     print(filename)
 
 # Generate heat maps
-cmap = sns.diverging_palette(220, 20, sep=20, as_cmap=True)
-
-xlabels = ["Vol", "FA", "MD", "LD", "TD", "N0", "ND"]
-
-fig, [ax1, ax2] = plt.subplots(1, 2, sharey=True, figsize=(20,15))
-fig.tight_layout()
-ax3 = fig.add_axes([1, 0.0275, 0.05, 0.95]) # add new axes for cbar [horizontal, vertical, width, height]
-ax1.tick_params(labelsize=14, size=4, rotation=45)
-ax2.tick_params(labelsize=14, size=4, rotation=45)
-ax3.tick_params(labelsize=16, size=0, rotation=270)
-spec = gridspec.GridSpec(ncols=2, nrows=1, figure=fig)
-sns.heatmap(df_var1, cmap=cmap, vmin=-4, vmax=4, cbar=False, ax=ax1, xticklabels=xlabels, yticklabels=False)
-sns.heatmap(df_var2, cmap=cmap, vmin=-4, vmax=4, ax=ax2, xticklabels=xlabels, yticklabels=False, cbar=True, cbar_ax=ax3)
-
 save_dir = os.path.join(os.getcwd(),'plots', 'reading', 'reading_heatmaps_ASEG.pdf') # {ENTER SAVE DIR HERE}
-fig.savefig(save_dir, bbox_inches='tight')
-
+heatmap(tvalues_one, tvalues_two, pvalues_one, pvalues_two, save_dir, xlabels, mask=False)
 # Generate masked heat maps
-fig, [ax1, ax2] = plt.subplots(1, 2, sharey=True, figsize=(15,10))
-fig.tight_layout()
-ax3 = fig.add_axes([1, 0.0275, 0.05, 0.95]) # add new axes for cbar [horizontal, vertical, width, height]
-ax1.tick_params(labelsize=14, size=0, rotation=45)
-ax2.tick_params(labelsize=14, size=0, rotation=45)
-ax3.tick_params(labelsize=16, size=0, rotation=270)
-sns.heatmap(df_var1, cmap=cmap, vmin=-4, vmax=4, cbar=False, ax=ax1, xticklabels=xlabels, yticklabels=False, mask=(pvalues_var1>0.05))
-sns.heatmap(df_var2, cmap=cmap, vmin=-4, vmax=4, ax=ax2, xticklabels=xlabels, yticklabels=False, 
-            mask=(pvalues_var2>0.05), cbar=True, cbar_ax=ax3)
-
 save_dir = os.path.join(os.getcwd(),'plots', 'reading', 'reading_heatmaps_masked_ASEG.pdf') # {ENTER SAVE DIR HERE}
-fig.savefig(save_dir, bbox_inches='tight')
+heatmap(tvalues_one, tvalues_two, pvalues_one, pvalues_two, save_dir, xlabels, mask=True)
 
 # partition ordered parcellation names
 i = 0 
@@ -287,5 +233,5 @@ for value in roi_parc:
     i = i + 1
 # output .csv files with significant ROIs
 save_dir = os.path.join(os.getcwd(),'plots', 'reading', 'lists')  # {ENTER SAVE DIR HERE}
-output = sig_rois(df_var1, pvalues_var1, xlabels, roi_parc, save_dir, 'reading_hours_ASEG.csv')
-output = sig_rois(df_var2, pvalues_var2, xlabels, roi_parc, save_dir, 'reading_years_ASEG.csv')
+output = sig_rois(tvalues_one, pvalues_one, xlabels, roi_parc, save_dir, 'reading_hours_ASEG.csv')
+output = sig_rois(tvalues_two, pvalues_two, xlabels, roi_parc, save_dir, 'reading_years_ASEG.csv')
